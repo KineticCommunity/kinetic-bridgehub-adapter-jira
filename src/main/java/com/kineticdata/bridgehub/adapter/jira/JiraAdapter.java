@@ -17,6 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Map;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.lang.StringUtils;
@@ -398,8 +399,24 @@ public class JiraAdapter implements BridgeAdapter {
         // Parse through the response and create the record lists
         ArrayList<Record> records = new ArrayList<Record>();
         for (int i=0; i < jsonArray.size(); i++) {
+            Map<String,Object> record = new HashMap<String,Object>();
             JSONObject recordObject = (JSONObject)jsonArray.get(i);
-            records.add(new Record((Map<String,Object>)recordObject));
+            JSONObject fieldObject = null;
+            for (String field : fields) {
+                Object value;
+                if (recordObject.keySet().contains(field)) {
+                   value = recordObject.get(field);
+                } else if (!recordObject.keySet().contains("fields")) {
+                    throw new BridgeError("Invalid Field: The field '" + field + "' was not found in the '" + structure + "' object.");
+                } else {
+                    if (fieldObject == null) {
+                        fieldObject = (JSONObject)JSONValue.parse(recordObject.get("fields").toString());
+                    }
+                    value = getFieldObject(fieldObject,field);
+                }
+                record.put(field,value);
+            }
+            records.add(new Record(record));
         }
         
         if (!structure.equals("Issue")) {
