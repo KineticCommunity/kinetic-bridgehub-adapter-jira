@@ -46,6 +46,20 @@ public class JiraAdapter implements BridgeAdapter {
     
     /** Defines the logger */
     protected static final org.slf4j.Logger logger = LoggerFactory.getLogger(JiraAdapter.class);
+
+    /** Adapter version constant. */
+    public static String VERSION;
+    /** Load the properties version from the version.properties file. */
+    static {
+        try {
+            java.util.Properties properties = new java.util.Properties();
+            properties.load(JiraAdapter.class.getResourceAsStream("/"+JiraAdapter.class.getName()+".version"));
+            VERSION = properties.getProperty("version");
+        } catch (IOException e) {
+            logger.warn("Unable to load "+JiraAdapter.class.getName()+" version properties.", e);
+            VERSION = "Unknown";
+        }
+    }
     
     /** Defines the collection of property names for the adapter. */
     public static class Properties {
@@ -81,7 +95,7 @@ public class JiraAdapter implements BridgeAdapter {
     
     @Override
     public String getVersion() {
-       return  "1.0.0";
+       return VERSION;
     }
     
     @Override
@@ -92,14 +106,14 @@ public class JiraAdapter implements BridgeAdapter {
     @Override
     public void setProperties(Map<String,String> parameters) {
         properties.setValues(parameters);
-        
-        this.baseSite = properties.getValue(Properties.BASESITE);
-        this.username = properties.getValue(Properties.USERNAME);
-        this.password = properties.getValue(Properties.PASSWORD);
     }
      
     @Override
     public void initialize() throws BridgeError {
+        this.baseSite = properties.getValue(Properties.BASESITE);
+        this.username = properties.getValue(Properties.USERNAME);
+        this.password = properties.getValue(Properties.PASSWORD);
+        
         // Testing the configuration values to make sure that they
         // correctly authenticate with Core
         testAuth();
@@ -111,11 +125,6 @@ public class JiraAdapter implements BridgeAdapter {
     
     @Override
     public Count count(BridgeRequest request) throws BridgeError {
-        // Log the access
-        logger.trace("Counting the records");
-        logger.trace("  Structure: " + request.getStructure());
-        logger.trace("  Query: " + request.getQuery());
-                
         String structure = request.getStructure();
         if (!VALID_STRUCTURES.contains(structure)) {
             throw new BridgeError("Invalid Structure: '" + structure + "' is not a valid structure");
@@ -170,11 +179,7 @@ public class JiraAdapter implements BridgeAdapter {
     @Override
     public Record retrieve(BridgeRequest request) throws BridgeError {
         request.setQuery(substituteQueryParameters(request));
-        // Log the access
-        logger.trace("  Structure: " + request.getStructure());
-        logger.trace("  Query: " + request.getQuery());
-        logger.trace("  Fields: " + request.getFieldString());
-
+        
         String structure = request.getStructure();
         if (!VALID_STRUCTURES.contains(structure)) {
             throw new BridgeError("Invalid Structure: '" + structure + "' is not a valid structure");
@@ -239,6 +244,7 @@ public class JiraAdapter implements BridgeAdapter {
             throw new BridgeError("Multiple results matched an expected single match query");
         } else if (count == 1L) {
             JSONObject fieldObject = null;
+            record = new LinkedHashMap<String,Object>();
             for (String field : fields) {
                 Object value;
                 if (jsonOutput.keySet().contains(field)) {
@@ -260,11 +266,6 @@ public class JiraAdapter implements BridgeAdapter {
     @Override
     public RecordList search(BridgeRequest request) throws BridgeError {
         request.setQuery(substituteQueryParameters(request));
-        // Log the access
-        logger.trace("Searching the records");
-        logger.trace("  Structure: " + request.getStructure());
-        logger.trace("  Fields: " + request.getFieldString());
-        logger.trace("  Query: " + request.getQuery());
         
         // Initialize the result data and response variables
         Map<String,Object> data = new LinkedHashMap();
