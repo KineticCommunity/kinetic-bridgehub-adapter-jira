@@ -26,7 +26,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -40,10 +40,10 @@ public class JiraAdapter implements BridgeAdapter {
     /*----------------------------------------------------------------------------------------------
      * PROPERTIES
      *--------------------------------------------------------------------------------------------*/
-    
+
     /** Defines the adapter display name. */
     public static final String NAME = "Jira Bridge";
-    
+
     /** Defines the logger */
     protected static final org.slf4j.Logger logger = LoggerFactory.getLogger(JiraAdapter.class);
 
@@ -60,7 +60,7 @@ public class JiraAdapter implements BridgeAdapter {
             VERSION = "Unknown";
         }
     }
-    
+
     /** Defines the collection of property names for the adapter. */
     public static class Properties {
         public static final String USERNAME = "Username";
@@ -77,14 +77,14 @@ public class JiraAdapter implements BridgeAdapter {
             new ConfigurableProperty(Properties.PASSWORD).setIsRequired(true).setIsSensitive(true),
             new ConfigurableProperty(Properties.BASESITE).setIsRequired(true)
     );
-    
+
     /**
      * Structures that are valid to use in the bridge
      */
     public static final List<String> VALID_STRUCTURES = Arrays.asList(new String[] {
         "User","Group","Issue","Project"
     });
-    
+
     /*---------------------------------------------------------------------------------------------
      * SETUP METHODS
      *-------------------------------------------------------------------------------------------*/
@@ -92,47 +92,47 @@ public class JiraAdapter implements BridgeAdapter {
     public String getName() {
         return NAME;
     }
-    
+
     @Override
     public String getVersion() {
        return VERSION;
     }
-    
+
     @Override
     public ConfigurablePropertyMap getProperties() {
         return properties;
     }
-    
+
     @Override
     public void setProperties(Map<String,String> parameters) {
         properties.setValues(parameters);
     }
-     
+
     @Override
     public void initialize() throws BridgeError {
         this.baseSite = properties.getValue(Properties.BASESITE);
         this.username = properties.getValue(Properties.USERNAME);
         this.password = properties.getValue(Properties.PASSWORD);
-        
+
         // Testing the configuration values to make sure that they
         // correctly authenticate with Core
         testAuth();
     }
-    
+
     /*---------------------------------------------------------------------------------------------
      * IMPLEMENTATION METHODS
      *-------------------------------------------------------------------------------------------*/
-    
+
     @Override
     public Count count(BridgeRequest request) throws BridgeError {
         String structure = request.getStructure();
         if (!VALID_STRUCTURES.contains(structure)) {
             throw new BridgeError("Invalid Structure: '" + structure + "' is not a valid structure");
         }
-        
+
         JiraQualificationParser parser = new JiraQualificationParser();
         String query = parser.parse(request.getQuery(),request.getParameters());
-        
+
         StringBuilder queryBuilder = new StringBuilder();
         queryBuilder.append(String.format("%s/rest/api/latest/",this.baseSite));
         if (structure.equals("Project")) {
@@ -150,14 +150,14 @@ public class JiraAdapter implements BridgeAdapter {
             queryBuilder.append(URLEncoder.encode(query));
         } else if (structure.equals("Issue")) {
             queryBuilder.append("search?");
-        
+
             queryBuilder.append("fields=key");
             queryBuilder.append("&jql=");
 
             String wcFreeQuery = createWildcardFreeQuery(query);
             queryBuilder.append(URLEncoder.encode(wcFreeQuery));
         }
-                
+
         JSONArray jsonArray;
         Long count;
         ResponseData response = sendRequest(queryBuilder.toString());
@@ -171,24 +171,24 @@ public class JiraAdapter implements BridgeAdapter {
         } else { // If structure is equal to User or Project
             jsonArray = (JSONArray)JSONValue.parse(response.getOutput());
             count = Long.valueOf(jsonArray.size());
-        }        
+        }
 
         return new Count(count);
     }
-    
+
     @Override
     public Record retrieve(BridgeRequest request) throws BridgeError {
         request.setQuery(substituteQueryParameters(request));
-        
+
         String structure = request.getStructure();
         if (!VALID_STRUCTURES.contains(structure)) {
             throw new BridgeError("Invalid Structure: '" + structure + "' is not a valid structure");
         }
-        
+
         JiraQualificationParser parser = new JiraQualificationParser();
         String query = parser.parse(request.getQuery(),request.getParameters());
         List<String> fields = request.getFields();
-        
+
         StringBuilder queryBuilder = new StringBuilder();
         queryBuilder.append(String.format("%s/rest/api/latest/", this.baseSite));
         if (structure.equals("Issue")) {
@@ -198,7 +198,7 @@ public class JiraAdapter implements BridgeAdapter {
                 simpleFields.append(field.split("\\.")[0]);
                 simpleFields.append(",");
             }
-        
+
             queryBuilder.append("fields=");
             queryBuilder.append(simpleFields.toString());
             queryBuilder.append("&maxResults=1");
@@ -217,7 +217,7 @@ public class JiraAdapter implements BridgeAdapter {
             queryBuilder.append(URLEncoder.encode(query));
             queryBuilder.append("&expand=users");
         }
-        
+
         Long count;
         ResponseData response = sendRequest(queryBuilder.toString());
         JSONObject jsonOutput = (JSONObject)JSONValue.parse(response.getOutput());
@@ -225,7 +225,7 @@ public class JiraAdapter implements BridgeAdapter {
             logger.error(response.getOutput());
             throw new BridgeError(response.getErrorMessage());
         }
-        
+
         if (response.getStatusCode() == 404) {
             count = 0L;
         } else if (structure.equals("Issue")) {
@@ -237,9 +237,9 @@ public class JiraAdapter implements BridgeAdapter {
         } else {
             count = 1L;
         }
-        
+
         Map<String,Object> record = null;
-        
+
         if (count > 1L) {
             throw new BridgeError("Multiple results matched an expected single match query");
         } else if (count == 1L) {
@@ -266,7 +266,7 @@ public class JiraAdapter implements BridgeAdapter {
     @Override
     public RecordList search(BridgeRequest request) throws BridgeError {
         request.setQuery(substituteQueryParameters(request));
-        
+
         // Initialize the result data and response variables
         Map<String,Object> data = new LinkedHashMap();
 
@@ -278,7 +278,7 @@ public class JiraAdapter implements BridgeAdapter {
         JiraQualificationParser parser = new JiraQualificationParser();
         String query = parser.parse(request.getQuery(),request.getParameters());
         List<String> fields = request.getFields();
-        
+
         StringBuilder queryBuilder = new StringBuilder();
         queryBuilder.append(String.format("%s/rest/api/latest/",this.baseSite));
         if (structure.equals("Project")) {
@@ -301,16 +301,16 @@ public class JiraAdapter implements BridgeAdapter {
                 simpleFields.append(field.split("\\.")[0]);
                 simpleFields.append(",");
             }
-        
+
             queryBuilder.append("fields=");
             queryBuilder.append(simpleFields.toString());
             queryBuilder.append("&jql=");
             String wcFreeQuery = createWildcardFreeQuery(query);
             queryBuilder.append(URLEncoder.encode(wcFreeQuery));
-            
+
             String[] standardSortFields = new String[] {"key","id","summary","issuetype","votes","resolution","resolutiondate","reporter","updated","created","description","priority","duedate","subtasks",
                                                             "status","labels","assignee","project","environment","lastViewed","progress","timeestimate","timeoriginalestimate","timespent","workratio"};
-            
+
             // Creating a order by string to add to the jql query.
             StringBuilder order = new StringBuilder();
             // Id and Key are considered aliases but have different values, so
@@ -332,7 +332,7 @@ public class JiraAdapter implements BridgeAdapter {
                             order.append(",");
                         }
                         order.append(key);
-                    } 
+                    }
                 }
             } else {
                 for (String field : fields) {
@@ -354,7 +354,7 @@ public class JiraAdapter implements BridgeAdapter {
             }
             queryBuilder.append("+").append(URLEncoder.encode(order.toString()));
         }
-        
+
         // Appending information about page sizes
         setDefaultMetadata(request);
         if (structure.equals("Project")) {
@@ -374,16 +374,16 @@ public class JiraAdapter implements BridgeAdapter {
                 queryBuilder.append("&startsAt=").append(request.getMetadata("offset"));
             }
         }
-                
+
         JSONArray jsonArray;
         Long count;
         ResponseData response = sendRequest(queryBuilder.toString());
-        
+
         if (response.getStatusCode() != 200) {
             logger.error(response.getOutput());
             throw new BridgeError(response.getErrorMessage());
         }
-            
+
         if (structure.equals("Group")) {
             JSONObject jsonOutput = (JSONObject)JSONValue.parse(response.getOutput());
             jsonArray = (JSONArray)jsonOutput.get("groups");
@@ -396,7 +396,7 @@ public class JiraAdapter implements BridgeAdapter {
             jsonArray = (JSONArray)JSONValue.parse(response.getOutput());
             count = Long.valueOf(jsonArray.size());
         }
- 
+
         // Parse through the response and create the record lists
         ArrayList<Record> records = new ArrayList<Record>();
         for (int i=0; i < jsonArray.size(); i++) {
@@ -419,7 +419,7 @@ public class JiraAdapter implements BridgeAdapter {
             }
             records.add(new Record(record));
         }
-        
+
         if (!structure.equals("Issue")) {
             if (request.getMetadata("order") == null) {
                 // name,type,desc assumes name ASC,type ASC,desc ASC
@@ -443,28 +443,28 @@ public class JiraAdapter implements BridgeAdapter {
         metadata.put("offset", Long.valueOf(request.getMetadata("offset")));
         metadata.put("size", Long.valueOf(records.size()));
         metadata.put("count", count);
-        
+
         data.put("metadata",metadata);
         data.put("fields",fields);
         data.put("records",records);
         System.out.println(records);
-        
+
         // Return the response
         return new RecordList(request.getFields(), records);
     }
-    
+
     /*---------------------------------------------------------------------------------------------
      * HELPER METHODS
      *-------------------------------------------------------------------------------------------*/
-    
+
     private String substituteQueryParameters(BridgeRequest request) throws BridgeError {
         JiraQualificationParser parser = new JiraQualificationParser();
         return parser.parse(request.getQuery(),request.getParameters());
     }
-    
+
     private String createWildcardFreeQuery(String query) throws BridgeError {
         StringBuilder output = new StringBuilder();
-        
+
         String[] queryParams = query.split("&");
         for (String param : queryParams) {
             String[] keyValuePair = param.split("=");
@@ -476,16 +476,16 @@ public class JiraAdapter implements BridgeAdapter {
                 output.append(param);
             }
         }
-        
+
         return output.toString();
     }
-        
+
     private void testAuth() throws BridgeError {
         logger.debug("Testing the authentication credentials");
         HttpGet get = new HttpGet(baseSite + "/rest/api/latest/");
         get = addAuthenticationHeader(get, this.username, this.password);
-        
-        DefaultHttpClient client = new DefaultHttpClient();
+
+        HttpClient client = HttpClients.createDefault();
         HttpResponse response;
         try {
             response = client.execute(get);
@@ -497,7 +497,7 @@ public class JiraAdapter implements BridgeAdapter {
         }
         catch (IOException e) {
             logger.error(e.getMessage());
-            throw new BridgeError("Unable to make a connection to Jira."); 
+            throw new BridgeError("Unable to make a connection to Jira.");
         }
     }
 
@@ -508,7 +508,7 @@ public class JiraAdapter implements BridgeAdapter {
 
         return get;
     }
-    
+
     private Object getFieldObject(JSONObject fieldObject, String complexObject) throws BridgeError {
         Object value = "";
 
@@ -548,23 +548,23 @@ public class JiraAdapter implements BridgeAdapter {
 
         return value;
     }
-    
+
     /**
      * A method that is used to send the http request to jira when given a query string
      */
     private ResponseData sendRequest(String queryString) throws BridgeError {
         String output = "";
         ResponseData responseData;
-        
-        HttpClient client = new DefaultHttpClient();
+
+        HttpClient client = HttpClients.createDefault();
         HttpGet get = new HttpGet(queryString);
-        
+
         // Setting up the basic authentication
         logger.trace("Appending the authorization header to the post call");
         String creds = this.username + ":" + this.password;
         byte[] basicAuthBytes = Base64.encodeBase64(creds.getBytes());
         get.setHeader("Authorization", "Basic " + new String(basicAuthBytes));
-        
+
         HttpResponse response;
         try {
             // Sending the request and timing how long it takes to complete
@@ -579,14 +579,14 @@ public class JiraAdapter implements BridgeAdapter {
             output = EntityUtils.toString(entity);
         }
         catch (IOException e) {
-            throw new BridgeError("IOException: Unable to make connection to " + queryString, e); 
+            throw new BridgeError("IOException: Unable to make connection to " + queryString, e);
         }
-        
+
         logger.debug("Query String: " + queryString);
 
         Integer statusCode = response.getStatusLine().getStatusCode();
         responseData = new ResponseData(statusCode, output);
-        
+
         if (statusCode != 200) {
             logger.error(output);
             if (statusCode == 401) {
@@ -609,11 +609,11 @@ public class JiraAdapter implements BridgeAdapter {
             }
         }
 
-        logger.trace("Jira Response: " + output); 
-        
+        logger.trace("Jira Response: " + output);
+
         return responseData;
     }
-    
+
     protected ArrayList<Record> sortRecords(final Map<String,String> fieldParser, ArrayList<Record> records) throws BridgeError {
         Collections.sort(records, new Comparator<Record>() {
             @Override
@@ -642,7 +642,7 @@ public class JiraAdapter implements BridgeAdapter {
         });
         return records;
     }
-    
+
     protected void setDefaultMetadata(BridgeRequest request) throws BridgeError{
         // Intialize the Long variables that will eventually be returned by
         // the metadata
@@ -699,37 +699,37 @@ public class JiraAdapter implements BridgeAdapter {
         metadata.put("offset",offset.toString());
         request.setMetadata(metadata);
     }
-    
+
     final class ResponseData {
         private Integer statusCode;
         private String errorMessage;
         private String output;
-        
+
         public ResponseData(Integer statusCode, String output) {
             this.statusCode = statusCode;
             this.output = output;
         }
-        
+
         public Integer getStatusCode() {
             return this.statusCode;
         }
-        
+
         public void setStatusCode(Integer statusCode) {
             this.statusCode = statusCode;
         }
-        
+
         public String getErrorMessage() {
             return this.errorMessage;
         }
-        
+
         public void setErrorMessage(String errorMessage) {
             this.errorMessage = errorMessage;
         }
-        
+
         public String getOutput() {
             return this.output;
         }
-        
+
         public void setOutput(String output) {
             this.output = output;
         }
